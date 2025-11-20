@@ -155,7 +155,7 @@ def add_ccs_field_to_dataset(
 
 
 def main():
-    input_file = "./output/ccs_commits_dataset.parquet"
+    input_file = "./output/commits_by_repo.parquet"
     
     # 可选：如果不想覆盖原文件，可以指定新的输出文件
     # output_file = ""

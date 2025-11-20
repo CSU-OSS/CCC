@@ -273,7 +273,7 @@ def save_scope_to_csv(output_file, scope_counts, total_records):
 
 def main():
     input_file = "./output/ccs_commits.parquet"
-    output_dir = "./analyze_report"
+    output_dir = "./output/analyze_report"
     
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     print(f"输出目录已创建: {output_dir}\n")

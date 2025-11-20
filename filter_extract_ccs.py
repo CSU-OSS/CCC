@@ -140,7 +140,7 @@ def filter_and_extract_ccs_commits(
 
 
 def main():
-    input_file = "./output/commits_by_repo.parquet"
+    input_file = "./output/commits_true_ccs_repos.parquet"
     output_file = "./output/ccs_commits.parquet"
     
     filter_and_extract_ccs_commits(
