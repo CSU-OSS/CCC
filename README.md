@@ -83,7 +83,7 @@ python ccs_repo_processor.py
 
 4. 判断`commits_by_repo.parquet`中的每一条commit是否符合CCS规范，并在数据集中增加一个字段`is_CCS`
 
-```json
+```
 python add_is_ccs.py
 ```
 
@@ -95,21 +95,21 @@ python filter_repos.py
 
 运行后，`./output`中会存放`commits_true_ccs_repos.parquet`与`repo_ccs_analysis.json`，前者是过滤后的数据集，后者是每个仓库的遵守CCS规范的commit具体情况
 
-6. 将数据集中所有`is_CCS` = 1的数据单独导出为一个文件，并为每一条数据增加`commit_type`与`commit_scope`字段，提取message中的type与scope
+6. 将数据集中满足`ccs_rate > 80%`的`repo`中的所有`is_CCS` = 1的数据单独导出为一个文件，并为每一条数据增加`commit_type`与`commit_scope`字段，提取message中的type与scope
 
 ```bash
 python filter_extract_ccs.py
 ```
 
-运行后，`./output`中会存放新的过滤后的`ccs_commits.parquet`
+运行后，`./output`中会存放新的过滤后的`ccs_commits.parquet`，以及保存各个`repo`的`ccs_rate`的`ccs_commits_analysis.json`
 
-7. 划分`train`、`test`、`valid`数据集
+7. 划分`train`、`test`、`valid`数据集，并进行一次过滤，只保留三个数据集中都出现过的`repo`的数据
 
 ```bash
 python split_ccs_commits.py
 ```
 
-运行后，`./output/ccs_commits_dataset`中会存放分割的`train`、`test`、`valid`三个数据集
+运行后，`./output/ccs_commits_dataset`中会存放分割的`train`、`test`、`valid`三个数据集，并且输入文件`ccs_commits.parquet`也会进行对应的过滤
 
 8. 将`ccs_commits_dataset`的`parquet`文件转为`json`文件（如果需要）
 
@@ -176,4 +176,3 @@ output/
     ├── commit_type_statistics.csv       # commit类型统计
     └── commit_scope_statistics.csv      # commit scope统计
 ```
-
