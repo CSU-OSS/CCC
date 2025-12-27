@@ -103,7 +103,15 @@ python filter_extract_ccs.py
 
 运行后，`./output`中会存放新的过滤后的`ccs_commits.parquet`，以及保存各个`repo`的`ccs_rate`的`ccs_commits_analysis.json`
 
-7. 划分`train`、`test`、`valid`数据集，并进行一次过滤，只保留三个数据集中都出现过的`repo`的数据
+7. 根据repo中的CCS关键词出现时间，确定每个仓库的“CCS规范引入日期”，将`ccs_commits.parquet`中所有时间早于该时间的commit过滤
+
+```python
+python filter_keyword_time.py
+```
+
+运行后，`./output`中的`ccs_commits.parquet`会被过滤，并且会产生`ccs_adoption_metadata.json`，用于记录每个repo的“CCS规范引入日期”
+
+8. 划分`train`、`test`、`valid`数据集，并进行一次过滤，只保留三个数据集中都出现过的`repo`的数据
 
 ```bash
 python split_ccs_commits.py
@@ -161,6 +169,7 @@ output/
 ├── commits_true_ccs_repos.parquet       # 步骤5输出：过滤后真正遵守CCS规范的仓库commit
 ├── repo_ccs_analysis.json               # 步骤5输出：每个仓库的CCS符合率详细分析
 ├── ccs_commits.parquet                  # 步骤6输出：仅包含符合CCS规范的commit（is_CCS=1）
+├── ccs_commits_analysis.json            # 步骤6输出：CCS符合率大于80%的仓库的详细信息
 ├── ccs_commits_dataset/                 # 步骤7输出：划分的训练/测试/验证集
 │   ├── ccs_commits_train.parquet                    # 训练集（80%）
 │   ├── ccs_commits_test.parquet                     # 测试集（10%）
