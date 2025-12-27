@@ -105,7 +105,7 @@ python filter_extract_ccs.py
 
 7. 根据repo中的CCS关键词出现时间，确定每个仓库的“CCS规范引入日期”，将`ccs_commits.parquet`中所有时间早于该时间的commit过滤
 
-```python
+```bash
 python filter_keyword_time.py
 ```
 
@@ -119,13 +119,13 @@ python split_ccs_commits.py
 
 运行后，`./output/ccs_commits_dataset`中会存放分割的`train`、`test`、`valid`三个数据集，并且输入文件`ccs_commits.parquet`也会进行对应的过滤
 
-8. 将`ccs_commits_dataset`的`parquet`文件转为`json`文件（如果需要）
+9. 将`ccs_commits_dataset`的`parquet`文件转为`json`文件（如果需要）
 
 ```bash
 python parquet_json.py
 ```
 
-运行后，`./output/ccs_commits_dataset_json`中会存放转为`json`格式的数据集
+运行后，`./output/ccs_commits_dataset_json`中会存放转为`json`格式的数据集s
 
 ## 数据分析
 
