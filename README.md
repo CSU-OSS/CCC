@@ -155,6 +155,7 @@ CCC/
 ├── analyze_ccs_statistics.py      # 统计分析脚本
 ├── ccs_repo_processor.py          # CCS仓库处理器
 ├── filter_extract_ccs.py          # 过滤提取脚本
+├── filter_keyword_time.py         # 过滤引入规范日期
 ├── filter_repos.py                # 过滤真正遵守CCS规范的仓库
 ├── parquet_json.py                # Parquet转JSON工具
 └── split_ccs_commits.py           # 分割提交脚本
@@ -168,13 +169,14 @@ output/
 ├── repo_cache_keyword.json              # 步骤3输出：仓库CCS规范检查缓存
 ├── commits_true_ccs_repos.parquet       # 步骤5输出：过滤后真正遵守CCS规范的仓库commit
 ├── repo_ccs_analysis.json               # 步骤5输出：每个仓库的CCS符合率详细分析
-├── ccs_commits.parquet                  # 步骤6输出：仅包含符合CCS规范的commit（is_CCS=1）
 ├── ccs_commits_analysis.json            # 步骤6输出：CCS符合率大于80%的仓库的详细信息
-├── ccs_commits_dataset/                 # 步骤7输出：划分的训练/测试/验证集
-│   ├── ccs_commits_train.parquet                    # 训练集（80%）
-│   ├── ccs_commits_test.parquet                     # 测试集（10%）
-│   └── ccs_commits_valid.parquet                    # 验证集（10%）
-├── ccs_commits_dataset_json/            # 步骤8输出：JSON格式的数据集
+├── ccs_commits.parquet                  # 步骤7输出：仅包含符合CCS规范且日期晚于“CCS规范引入日期”的commit
+├── ccs_adoption_metadata.json           # 步骤7输出：记录每个仓库的“CCS规范引入日期”
+├── ccs_commits_dataset/                 # 步骤8输出：划分的训练/测试/验证集
+│   ├── ccs_commits_train.parquet        # 训练集（80%）
+│   ├── ccs_commits_test.parquet         # 测试集（10%）
+│   └── ccs_commits_valid.parquet               # 验证集（10%）
+├── ccs_commits_dataset_json/            # 步骤9输出：JSON格式的数据集
 │   ├── ccs_commits_train.json
 │   ├── ccs_commits_test.json
 │   └── ccs_commits_valid.json
