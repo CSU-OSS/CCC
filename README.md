@@ -1,33 +1,33 @@
-# CCC
+# C2MBench
 
-## 项目设置指南
+## Project Setup Guide
 
-本项目现已使用 **Git** 和 **UV** 进行管理。
+This project is now managed using **Git** and **UV**.
 
-### 环境要求
+### Environment Requirements
 
 - Python >= 3.8
 - Git
-- UV 包管理器
+- UV package manager
 
-### 快速开始
+### Quick Start
 
-#### 1. 克隆项目
+#### 1. Clone the project
 
 ```bash
 git clone https://github.com/CSU-OSS/CCC.git
 cd CCC
 ```
 
-#### 2. 安装依赖
+#### 2. Install Dependencies
 
-使用 UV 自动创建虚拟环境并安装所有依赖：
+Use UV to automatically create a virtual environment and install all dependencies:
 
 ```bash
 uv sync
 ```
 
-#### 3. 激活虚拟环境
+#### 3. Activate Virtual Environment
 
 ```bash
 # Windows
@@ -37,31 +37,31 @@ uv sync
 source .venv/bin/activate
 ```
 
-#### 4. 运行脚本
+#### 4. Run Script
 
-使用 UV 运行脚本（自动在虚拟环境中执行）：
+Execute the script using UV (automatically runs within the virtual environment):
 
 ```bash
-# 方式1: 使用 uv run（推荐）
+# Method 1: Use uv run (recommended)
 uv run python ccs_repo_processor.py
 
-# 方式2: 激活虚拟环境后直接运行
+# Method 2: Run directly after activating the environment
 .venv\Scripts\activate
 python ccs_repo_processor.py
 ```
 
-## 获取数据集
+## Obtain the Dataset
 
-1. 获取原始CommitChronic数据集，在终端中运行以下指令
+1. Obtain the raw CommitChronic dataset by running the following commands in the terminal
 
 ```bash
 pip install huggingface_hub
 huggingface-cli download JetBrains-Research/commit-chronicle --repo-type dataset --local-dir ./commit-chronicle-data
 ```
 
-运行后，`./commit-chronicle-data/data`中存放着原始CommitChronic数据集
+After running, the raw CommitChronic dataset is stored in `./commit-chronicle-data/data`
 
-2. 创建.env文件
+2. Create the .env file
 
 ```bash
 # Linux/Mac
@@ -71,119 +71,119 @@ cp .env.example .env
 Copy-Item .env.example .env
 ```
 
-然后编辑 .env 文件，将 your_github_token_here 替换为真实 Token
+Then edit the .env file, replacing `your_github_token_here` with your actual token.
 
-3. 通过判断数据中的repo是否遵守CCS规范，对原始数据集进行筛选，若数据集未下载到当前目录，需要在584行将`input_dir`改为自己的路径
+3. Filter the raw dataset by checking if repositories comply with CCS specifications. If the dataset hasn't been downloaded to the current directory, modify `input_dir` to your path on line 584.
 
 ```bash
 python ccs_repo_processor.py
 ```
 
-运行后，`./output`中会存放`commits_by_repo.parquet`与`repo_cache_keyword.json`，前者中是从原始数据集筛选后得到的数据集，存放所有遵守CCS规范的repo下的所有commit数据，后者存放着每个repo是否符合CCS规范
+After running, `./output` will contain `commits_by_repo.parquet` and `repo_cache_keyword.json`. The former holds the filtered dataset containing all commits from repositories compliant with CCS specifications, while the latter stores whether each repository meets CCS standards.
 
-4. 判断`commits_by_repo.parquet`中的每一条commit是否符合CCS规范，并在数据集中增加一个字段`is_CCS`
+4. Determine whether each commit in `commits_by_repo.parquet` complies with the CCS specification, and add a new field `is_CCS` to the dataset.
 
 ```
 python add_is_ccs.py
 ```
 
-5. 根据字段`is_CCS`，过滤掉那些一个遵守CCS规范的commit都没有的`repo`
+5. Filter out repositories that contain no CCS-compliant commits based on the `is_CCS` field.
 
 ```
 python filter_repos.py
 ```
 
-运行后，`./output`中会存放`commits_true_ccs_repos.parquet`与`repo_ccs_analysis.json`，前者是过滤后的数据集，后者是每个仓库的遵守CCS规范的commit具体情况
+After running, `./output` will contain `commits_true_ccs_repos.parquet` and `repo_ccs_analysis.json`. The former is the filtered dataset, while the latter details CCS-compliant commits for each repository.
 
-6. 将数据集中满足`ccs_rate > 80%`的`repo`中的所有`is_CCS` = 1的数据单独导出为一个文件，并为每一条数据增加`commit_type`与`commit_scope`字段，提取message中的type与scope
+6. Export all entries where `is_CCS` = 1 from repositories meeting `ccs_rate > 80%` into a separate file. Add `commit_type` and `commit_scope` fields to each entry by extracting the type and scope from the commit message.
 
 ```bash
 python filter_extract_ccs.py
 ```
 
-运行后，`./output`中会存放新的过滤后的`ccs_commits.parquet`，以及保存各个`repo`的`ccs_rate`的`ccs_commits_analysis.json`
+After running, the filtered `ccs_commits.parquet` will be stored in `./output`, along with `ccs_commits_analysis.json` containing each `repo`'s `ccs_rate`.
 
-7. 根据repo中的CCS关键词出现时间，确定每个仓库的“CCS规范引入日期”，将`ccs_commits.parquet`中所有时间早于该时间的commit过滤
+7. Determine each repository's “CCS specification introduction date” based on the earliest occurrence of CCS keywords in the repo. Filter all commits in `ccs_commits.parquet` that occurred before this date.
 
 ```bash
 python filter_keyword_time.py
 ```
 
-运行后，`./output`中的`ccs_commits.parquet`会被过滤，并且会产生`ccs_adoption_metadata.json`，用于记录每个repo的“CCS规范引入日期”
+After running, `ccs_commits.parquet` in `./output` will be filtered, and `ccs_adoption_metadata.json` will be generated to record each repo's “CCS specification introduction date”.
 
-8. 划分`train`、`test`、`valid`数据集，并进行一次过滤，只保留三个数据集中都出现过的`repo`的数据
+8. Partition the data into `train`, `test`, and `valid` datasets. Apply a final filter to retain only repositories appearing in all three datasets.
 
 ```bash
 python split_ccs_commits.py
 ```
 
-运行后，`./output/ccs_commits_dataset`中会存放分割的`train`、`test`、`valid`三个数据集，并且输入文件`ccs_commits.parquet`也会进行对应的过滤
+After running, the split `train`, `test`, and `valid` datasets will be stored in `./output/ccs_commits_dataset`, and the input file `ccs_commits.parquet` will also undergo corresponding filtering.
 
-9. 将`ccs_commits_dataset`的`parquet`文件转为`json`文件（如果需要）
+9. Convert the `parquet` files in `ccs_commits_dataset` to `json` files (if needed)
 
 ```bash
 python parquet_json.py
 ```
 
-运行后，`./output/ccs_commits_dataset_json`中会存放转为`json`格式的数据集s
+After running, the converted `json` datasets will be stored in `./output/ccs_commits_dataset_json`
 
-## 数据分析
+## Data Analysis
 
 ```bash
 python analyze_ccs_statistics.py
 ```
 
-该脚本分析`./output/ccs_commits.parquet`数据集，并生成`./analyze`目录，存放以下五个文件
+This script analyzes the `./output/ccs_commits.parquet` dataset and generates the `./analyze` directory containing the following five files:
 
-- `ccs_statistics_report.txt` - 完整文本报告
-- `repo_language_statistics.csv` - 仓库语言统计
-- `commit_language_statistics.csv` - 提交语言统计
-- `commit_type_statistics.csv` - Type统计
-- `commit_scope_statistics.csv` - Scope统计
+- `ccs_statistics_report.txt` - Full text report
+- `repo_language_statistics.csv` - Repository language statistics
+- `commit_language_statistics.csv` - Commit language statistics
+- `commit_type_statistics.csv` - Commit type statistics
+- `commit_scope_statistics.csv` - Commit scope statistics
 
-## 项目结构
+## Project Structure
 
 ```
 CCC/
-├── .git/                          # Git 版本控制
-├── .venv/                         # 虚拟环境（不提交到Git）
-├── .gitignore                     # Git 忽略文件配置
-├── pyproject.toml                 # 项目配置和依赖声明
-├── uv.lock                        # 锁定的依赖版本
-├── README.md                      # 项目说明
-├── add_is_ccs.py                  # 添加is_CCS字段
-├── analyze_ccs_statistics.py      # 统计分析脚本
-├── ccs_repo_processor.py          # CCS仓库处理器
-├── filter_extract_ccs.py          # 过滤提取脚本
-├── filter_keyword_time.py         # 过滤引入规范日期
-├── filter_repos.py                # 过滤真正遵守CCS规范的仓库
-├── parquet_json.py                # Parquet转JSON工具
-└── split_ccs_commits.py           # 分割提交脚本
+├── .git/                          # Git version control
+├── .venv/                         # Virtual environment (not committed to Git)
+├── .gitignore                     # Git ignore file configuration
+├── pyproject.toml                 # Project configuration and dependency declaration
+├── uv.lock                        # Locked dependency versions
+├── README.md                      # Project description
+├── add_is_ccs.py                  # Add is_CCS field
+├── analyze_ccs_statistics.py      # Statistical analysis script
+├── ccs_repo_processor.py          # CCS repository processor
+├── filter_extract_ccs.py          # Filter extraction script
+├── filter_keyword_time.py         # Filter by specification adoption date
+├── filter_repos.py                # Filter repositories genuinely adhering to CCS specifications
+├── parquet_json.py                # Parquet-to-JSON conversion tool
+└── split_ccs_commits.py           # Commit splitting script
 ```
 
-## 输出文件
+## Output Files
 
 ```
 output/
-├── commits_by_repo.parquet              # 步骤3输出：包含CCS关键词的仓库的所有commit
-├── repo_cache_keyword.json              # 步骤3输出：仓库CCS规范检查缓存
-├── commits_true_ccs_repos.parquet       # 步骤5输出：过滤后真正遵守CCS规范的仓库commit
-├── repo_ccs_analysis.json               # 步骤5输出：每个仓库的CCS符合率详细分析
-├── ccs_commits_analysis.json            # 步骤6输出：CCS符合率大于80%的仓库的详细信息
-├── ccs_commits.parquet                  # 步骤7输出：仅包含符合CCS规范且日期晚于“CCS规范引入日期”的commit
-├── ccs_adoption_metadata.json           # 步骤7输出：记录每个仓库的“CCS规范引入日期”
-├── ccs_commits_dataset/                 # 步骤8输出：划分的训练/测试/验证集
-│   ├── ccs_commits_train.parquet        # 训练集（80%）
-│   ├── ccs_commits_test.parquet         # 测试集（10%）
-│   └── ccs_commits_valid.parquet               # 验证集（10%）
-├── ccs_commits_dataset_json/            # 步骤9输出：JSON格式的数据集
+├── commits_by_repo.parquet              # Step 3 output: All commits from repositories containing CCS keywords
+├── repo_cache_keyword.json              # Step 3 output: Repository CCS compliance check cache
+├── commits_true_ccs_repos.parquet       # Step 5 output: Commits from repositories that genuinely comply with CCS after filtering
+├── repo_ccs_analysis.json               # Step 5 output: Detailed CCS compliance analysis per repository
+├── ccs_commits_analysis.json            # Step 6 output: Detailed information for repositories with CCS compliance > 80%
+├── ccs_commits.parquet                  # Step 7 output: Commits compliant with CCS and dated after “CCS adoption date”
+├── ccs_adoption_metadata.json           # Step 7 output: Records the “CCS specification introduction date” for each repository
+├── ccs_commits_dataset/                 # Step 8 output: Partitioned training/test/validation sets
+│   ├── ccs_commits_train.parquet        # Training set (80%)
+│   ├── ccs_commits_test.parquet         # Test set (10%)
+│   └── ccs_commits_valid.parquet               # Validation set (10%)
+├── ccs_commits_dataset_json/            # Step 9 output: Dataset in JSON format
 │   ├── ccs_commits_train.json
 │   ├── ccs_commits_test.json
 │   └── ccs_commits_valid.json
-└── analyze_report/                      # 数据分析输出
-    ├── ccs_statistics_report.txt        # 完整统计报告
-    ├── repo_language_statistics.csv     # 仓库语言分布
-    ├── commit_language_statistics.csv   # commit语言分布
-    ├── commit_type_statistics.csv       # commit类型统计
-    └── commit_scope_statistics.csv      # commit scope统计
+└── analyze_report/                      # Data analysis outputs
+    ├── ccs_statistics_report.txt        # Full statistical report
+    ├── repo_language_statistics.csv     # Repository language distribution
+    ├── commit_language_statistics.csv   # Commit language distribution
+    ├── commit_type_statistics.csv       # Commit type statistics
+    └── commit_scope_statistics.csv      # Commit scope statistics
 ```

@@ -14,7 +14,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 load_dotenv()
 
-# --- 配置 ---
+# --- Configuration ---
 COMMITS_FILE = "./output/ccs_commits.parquet"
 ANALYSIS_CACHE_FILE = "./output/ccs_adoption_metadata.json"
 COMMIT_DATE_FORMAT = "%d.%m.%Y %H:%M:%S"
@@ -22,14 +22,15 @@ CACHE_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 KEYWORD = "conventionalcommits.org"
 MIN_REQUEST_INTERVAL = 0.5
 
+
 class PrecisionCCSChecker:
     def __init__(self):
-        self.github_token = os.getenv('GITHUB_TOKEN', '') 
+        self.github_token = os.getenv('GITHUB_TOKEN', '')
         if not self.github_token:
-            raise ValueError("未检测到 GITHUB_TOKEN")
-        
+            raise ValueError("GITHUB_TOKEN not detected")
+
         self.session = requests.Session()
-        self.session.verify = False 
+        self.session.verify = False
         self.session.headers.update({
             'Authorization': f'token {self.github_token}',
             'Accept': 'application/vnd.github.v3.diff',
@@ -54,13 +55,13 @@ class PrecisionCCSChecker:
                 if res.status_code == 403:
                     reset = int(res.headers.get('X-RateLimit-Reset', time.time() + 60))
                     wait_time = max(reset - int(time.time()), 30)
-                    print(f"\n   [Rate Limit] 达到 API 上限，等待 {wait_time} 秒后重试...")
+                    print(f"\n   [Rate Limit] API limit reached, waiting {wait_time} seconds to retry...")
                     time.sleep(wait_time)
                     continue
                 res.raise_for_status()
                 return res.json()
             except Exception as e:
-                print(f"\n   [网络故障] 访问失败: {e} | 30秒后重试...")
+                print(f"\n   [Network Error] Request failed: {e} | Retrying in 30 seconds...")
                 time.sleep(30)
                 continue
 
@@ -72,15 +73,15 @@ class PrecisionCCSChecker:
                 res.raise_for_status()
                 return res.text
             except Exception as e:
-                print(f"\n   [网络故障] Diff 获取失败: {e} | 30秒后重试...")
+                print(f"\n   [Network Error] Diff retrieval failed: {e} | Retrying in 30 seconds...")
                 time.sleep(30)
                 continue
 
     def get_exact_adoption_date(self, repo_name: str) -> Optional[str]:
-        print(f"   查询仓库: {repo_name}")
+        print(f"   Querying repository: {repo_name}")
         search_url = f"https://api.github.com/search/code?q={KEYWORD}+repo:{repo_name}"
         search_res = self._get_json(search_url)
-        
+
         if not search_res or not search_res.get('items'):
             return None
 
@@ -88,14 +89,14 @@ class PrecisionCCSChecker:
         found_dates = []
 
         for path in matched_paths:
-            print(f"     检索文件全量历史: {path}")
+            print(f"     Retrieving full file history: {path}")
             all_commits = []
             page = 1
             while True:
                 params = {'path': path, 'per_page': 100, 'page': page}
                 commits_url = f"https://api.github.com/repos/{repo_name}/commits"
                 page_commits = self._get_json(commits_url, params=params)
-                
+
                 if not page_commits or len(page_commits) == 0:
                     break
                 all_commits.extend(page_commits)
@@ -108,24 +109,26 @@ class PrecisionCCSChecker:
                 sha = commit_meta['sha']
                 commit_url = f"https://api.github.com/repos/{repo_name}/commits/{sha}"
                 diff_text = self._get_diff(commit_url)
-                
-                if any(line.startswith('+') and not line.startswith('+++') and KEYWORD in line for line in diff_text.split('\n')):
+
+                if any(line.startswith('+') and not line.startswith('+++') and KEYWORD in line for line in
+                       diff_text.split('\n')):
                     date_str = commit_meta['commit']['author']['date']
                     dt = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%SZ')
                     found_dates.append(dt)
-                    print(f"     已确认引入点: {dt}")
+                    print(f"     Introduction point confirmed: {dt}")
                     introduced_found = True
-                    break 
+                    break
 
             if not introduced_found and len(all_commits) > 0:
                 oldest = all_commits[-1]
                 date_str = oldest['commit']['author']['date']
                 found_dates.append(datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%SZ'))
-                print(f"     锁定文件诞生点: {date_str}")
+                print(f"     Locking file creation point: {date_str}")
 
         if found_dates:
             return min(found_dates).strftime(CACHE_DATE_FORMAT)
         return None
+
 
 class CommitDatasetProcessor:
     def __init__(self, checker: PrecisionCCSChecker):
@@ -149,19 +152,19 @@ class CommitDatasetProcessor:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
     def run(self):
-        print("\n[Step 1] 加载原始数据...")
+        print("\n[Step 1] Loading raw data...")
         df = pd.read_parquet(COMMITS_FILE)
         df['repo'] = df['repo'].apply(lambda x: x[0] if isinstance(x, (list, np.ndarray)) else x).astype(str)
         df['commit_datetime'] = pd.to_datetime(df['date'], format=COMMIT_DATE_FORMAT, errors='coerce')
         df.dropna(subset=['commit_datetime', 'repo'], inplace=True)
         all_unique_repos = sorted(list(df['repo'].unique()))
 
-        print(f"[Step 2] 确认采用日期 (共 {len(all_unique_repos)} 个仓库)...")
+        print(f"[Step 2] Confirming adoption dates (Total {len(all_unique_repos)} repositories)...")
         for repo in all_unique_repos:
             original_count = int(len(df[df['repo'] == repo]))
-            
+
             if repo in self.repo_metadata and self.repo_metadata[repo].get('adoption_date'):
-                print(f"   使用缓存: {repo}")
+                print(f"   Using cache: {repo}")
             else:
                 date_str = self.checker.get_exact_adoption_date(repo)
                 self.repo_metadata[repo] = {
@@ -171,7 +174,7 @@ class CommitDatasetProcessor:
                 }
                 self.save_cache()
 
-        print("\n[Step 3] 执行过滤与数据统计...")
+        print("\n[Step 3] Executing filtering and statistics calculation...")
         final_dfs = []
         for repo in all_unique_repos:
             repo_df = df[df['repo'] == repo].copy()
@@ -191,17 +194,17 @@ class CommitDatasetProcessor:
                 meta['filtered_count'] = 0
                 final_dfs.append(repo_df)
 
-        print("[Step 4] 覆盖保存 Parquet 文件...")
+        print("[Step 4] Overwriting and saving Parquet file...")
         if final_dfs:
             final_df = pd.concat(final_dfs, ignore_index=True)
             if 'commit_datetime' in final_df.columns:
                 final_df = final_df.drop(columns=['commit_datetime'])
-            
+
             final_df.to_parquet(COMMITS_FILE, index=False)
             self.save_cache()
             total_repos = len(all_unique_repos)
-            print(f"处理完成，最终保留记录: {len(final_df)} 条")
-            print(f"仓库总数: {total_repos}")
+            print(f"Processing complete. Final retained records: {len(final_df)}")
+            print(f"Total repositories: {total_repos}")
 
 def main():
     try:
@@ -210,7 +213,7 @@ def main():
         processor.load_cache()
         processor.run()
     except Exception as e:
-        print(f"程序中止: {e}")
+        print(f"Program terminated: {e}")
 
 if __name__ == "__main__":
     main()

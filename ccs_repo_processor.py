@@ -1,9 +1,9 @@
 """
-基于关键词搜索的CCS规范检查器和数据集处理器
+Keyword-based CCS Compliance Checker and Dataset Processor
 
-该脚本包含两个主要功能：
-1. KeywordCCSChecker: 通过搜索"conventionalcommits.org"关键词判断仓库是否采用CCS规范
-2. CommitDatasetProcessorByKeyword: 处理commit-chronicle数据集，筛选CCS规范的repo和commit
+This script contains two main functionalities:
+1. KeywordCCSChecker: Determines if a repository adopts CCS standards by searching for the "conventionalcommits.org" keyword.
+2. CommitDatasetProcessorByKeyword: Processes the commit-chronicle dataset to filter CCS-compliant repos and commits.
 """
 
 import os
@@ -24,7 +24,7 @@ load_dotenv()
 
 
 class KeywordCCSChecker:
-    
+
     def __init__(self, github_token: Optional[str] = None):
         self.github_token = github_token or os.getenv('GITHUB_TOKEN', '')
         if not self.github_token:
@@ -38,46 +38,46 @@ class KeywordCCSChecker:
             'Accept': 'application/vnd.github.v3+json',
             'User-Agent': 'CCS-Keyword-Checker/2.0'
         })
-        
+
         self.keyword = "conventionalcommits.org"
-        
+
         self.last_request_time = 0
         self.min_request_interval = 1.0
-    
+
     def _wait_for_rate_limit(self):
         current_time = time.time()
         elapsed = current_time - self.last_request_time
         if elapsed < self.min_request_interval:
             time.sleep(self.min_request_interval - elapsed)
         self.last_request_time = time.time()
-    
+
     def _make_github_request(self, url: str, params: Optional[Dict] = None) -> Optional[Dict]:
         self._wait_for_rate_limit()
-        
+
         try:
             response = self.session.get(url, params=params)
-            
+
             if response.status_code == 403:
                 reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
                 current_time = int(time.time())
                 if reset_time > current_time:
                     wait_time = reset_time - current_time + 1
-                    print(f"API速率限制，等待 {wait_time} 秒...")
+                    print(f"API rate limit reached. Waiting for {wait_time} seconds...")
                     time.sleep(wait_time)
                     return self._make_github_request(url, params)
-            
+
             if response.status_code == 200:
                 return response.json()
             elif response.status_code == 404:
                 return None
             else:
-                print(f"GitHub API请求失败: {response.status_code} - {response.text}")
+                print(f"GitHub API request failed: {response.status_code} - {response.text}")
                 return None
-                
+
         except requests.exceptions.RequestException as e:
-            print(f"网络请求错误: {e}")
+            print(f"Network request error: {e}")
             return None
-    
+
     def search_keyword_in_repo(self, repo_name: str) -> bool:
         try:
             search_url = "https://api.github.com/search/code"
@@ -85,94 +85,94 @@ class KeywordCCSChecker:
                 'q': f'{self.keyword} repo:{repo_name}',
                 'per_page': 1
             }
-            
-            print(f"在仓库 {repo_name} 中搜索关键词: {self.keyword}")
-            
+
+            print(f"Searching keyword '{self.keyword}' in repository: {repo_name}")
+
             result = self._make_github_request(search_url, params)
-            
+
             if result is None:
-                print(f"无法搜索仓库 {repo_name}")
+                print(f"Unable to search repository: {repo_name}")
                 return False
 
             total_count = result.get('total_count', 0)
             found = total_count > 0
-            
+
             if found:
-                print(f"在仓库 {repo_name} 中找到关键词 '{self.keyword}' ({total_count} 次)")
+                print(f"Keyword '{self.keyword}' found in {repo_name} ({total_count} times)")
 
                 items = result.get('items', [])
                 if items:
                     first_item = items[0]
                     file_path = first_item.get('path', 'unknown')
-                    print(f"    首次出现在文件: {file_path}")
+                    print(f"    First appearance in file: {file_path}")
             else:
-                print(f"在仓库 {repo_name} 中未找到关键词 '{self.keyword}'")
-            
+                print(f"Keyword '{self.keyword}' not found in {repo_name}")
+
             return found
-            
+
         except Exception as e:
-            print(f"搜索仓库 {repo_name} 时出错: {e}")
+            print(f"Error searching repository {repo_name}: {e}")
             return False
-    
+
     def check_repository(self, repo_name: str, verbose: bool = True) -> bool:
         if verbose:
-            print(f"检查仓库: {repo_name}")
-            print(f"检查方法: 搜索关键词 '{self.keyword}'")
+            print(f"Checking repository: {repo_name}")
+            print(f"Method: Searching for keyword '{self.keyword}'")
             print("-" * 60)
 
         repo_url = f"https://api.github.com/repos/{repo_name}"
         repo_info = self._make_github_request(repo_url)
-        
+
         if repo_info is None:
             if verbose:
-                print(f"仓库 {repo_name} 不存在或无法访问")
+                print(f"Repository {repo_name} does not exist or is inaccessible")
             return False
 
         has_keyword = self.search_keyword_in_repo(repo_name)
-        
+
         if verbose:
-            result_text = "采用CCS规范" if has_keyword else "未采用CCS规范"
-            print(f"判定结果: {result_text}")
+            result_text = "CCS Compliant" if has_keyword else "Non-CCS Compliant"
+            print(f"Result: {result_text}")
             print("-" * 60)
-        
+
         return has_keyword
-    
+
     def batch_check(self, repo_names: list, verbose: bool = False) -> Dict[str, bool]:
         results = {}
         total = len(repo_names)
-        
-        print(f"开始批量检查 {total} 个仓库...")
-        print(f"检查方法: 搜索关键词 '{self.keyword}'")
+
+        print(f"Starting batch check for {total} repositories...")
+        print(f"Method: Keyword search for '{self.keyword}'")
         print("=" * 80)
-        
+
         conventional_count = 0
-        
+
         for i, repo_name in enumerate(repo_names, 1):
-            print(f"\n[{i}/{total}] 检查: {repo_name}")
-            
+            print(f"\n[{i}/{total}] Checking: {repo_name}")
+
             try:
                 is_conventional = self.check_repository(repo_name, verbose=verbose)
                 results[repo_name] = is_conventional
-                
+
                 if is_conventional:
                     conventional_count += 1
-                
+
                 status = "[OK]" if is_conventional else "[NO]"
-                print(f"         结果: {status}")
-                
+                print(f"         Status: {status}")
+
             except Exception as e:
                 results[repo_name] = False
-                print(f"         结果: [NO] (错误: {e})")
+                print(f"         Status: [NO] (Error: {e})")
 
-        print(f"\n批量检查汇总")
+        print(f"\nBatch Check Summary")
         print("=" * 40)
-        print(f"总计仓库: {total}")
-        print(f"采用CCS规范: {conventional_count} ({conventional_count/total:.1%})")
-        print(f"未采用CCS规范: {total - conventional_count}")
+        print(f"Total Repositories: {total}")
+        print(f"CCS Compliant: {conventional_count} ({conventional_count / total:.1%})")
+        print(f"Non-CCS Compliant: {total - conventional_count}")
         print("=" * 40)
-        
+
         return results
-    
+
     def save_results(self, results: Dict[str, bool], output_file: str):
         try:
             output_data = {
@@ -183,31 +183,31 @@ class KeywordCCSChecker:
                 'conventional_repos': sum(results.values()),
                 'results': results
             }
-            
+
             with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(output_data, f, ensure_ascii=False, indent=2)
-            
-            print(f"检查结果已保存到: {output_file}")
-            
+
+            print(f"Results saved to: {output_file}")
+
         except Exception as e:
-            print(f"保存结果失败: {e}")
-    
+            print(f"Failed to save results: {e}")
+
     def load_results(self, input_file: str) -> Optional[Dict[str, bool]]:
         try:
             if not Path(input_file).exists():
-                print(f"结果文件不存在: {input_file}")
+                print(f"Result file not found: {input_file}")
                 return None
-            
+
             with open(input_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
+
             results = data.get('results', {})
-            print(f"已加载 {len(results)} 个仓库的检查结果")
-            
+            print(f"Loaded check results for {len(results)} repositories")
+
             return results
-            
+
         except Exception as e:
-            print(f"加载结果失败: {e}")
+            print(f"Failed to load results: {e}")
             return None
 
 
@@ -226,32 +226,33 @@ class CommitDatasetProcessorByKeyword:
             'processed_records': 0,
             'skipped_records': 0
         }
-    
+
     def is_conventional_repo(self, repo_name: str) -> bool:
         if repo_name in self.repo_cache:
             return self.repo_cache[repo_name]
-        
+
         try:
-            print(f"检查仓库: {repo_name}")
+            print(f"Checking repository: {repo_name}")
 
             is_conventional = self.repo_checker.check_repository(
-                repo_name, 
+                repo_name,
                 verbose=False
             )
 
             self.repo_cache[repo_name] = is_conventional
-            
+
             status = "[OK]" if is_conventional else "[NO]"
-            method_desc = f"搜索'{self.repo_checker.keyword}'"
-            print(f"    结果: {status} {'明确采用' if is_conventional else '未明确采用'}CCS规范 ({method_desc})")
-            
+            method_desc = f"Search '{self.repo_checker.keyword}'"
+            print(
+                f"    Result: {status} {'Confirmed' if is_conventional else 'Not confirmed'} CCS compliance ({method_desc})")
+
             return is_conventional
-            
+
         except Exception as e:
-            print(f"检查仓库 {repo_name} 时出错: {e}")
+            print(f"Error checking repository {repo_name}: {e}")
             self.repo_cache[repo_name] = False
             return False
-    
+
     def extract_diff_content(self, mods) -> str:
         if mods is None:
             return ""
@@ -261,16 +262,16 @@ class CommitDatasetProcessorByKeyword:
 
         if not isinstance(mods, list):
             return ""
-        
+
         diff_parts = []
         for mod in mods:
             if isinstance(mod, dict) and 'diff' in mod:
                 diff_content = mod.get('diff', '')
                 if diff_content:
                     diff_parts.append(diff_content)
-        
+
         return '\n---\n'.join(diff_parts)
-    
+
     def safe_extract(self, value):
         if value is None:
             return None
@@ -295,7 +296,7 @@ class CommitDatasetProcessorByKeyword:
                 return None
 
         return value
-    
+
     def is_valid_string(self, value):
         if value is None:
             return False
@@ -309,7 +310,7 @@ class CommitDatasetProcessorByKeyword:
         try:
             repo_name = self.safe_extract(record.get('repo'))
             message = self.safe_extract(record.get('message')) or self.safe_extract(record.get('original_message', ''))
-            
+
             if not self.is_valid_string(repo_name) or not self.is_valid_string(message):
                 self.stats['skipped_records'] += 1
                 return None
@@ -321,42 +322,42 @@ class CommitDatasetProcessorByKeyword:
             self.stats['processed_records'] += 1
 
             return record
-            
+
         except Exception as e:
-            print(f"处理记录时出错: {e}")
+            print(f"Error processing record: {e}")
             self.stats['skipped_records'] += 1
             return None
-    
+
     def process_batch(self, records: List[Dict]) -> List[Dict]:
         processed_records = []
-        
+
         for i, record in enumerate(records):
             if i % 100 == 0:
-                print(f"已处理 {i}/{len(records)} 条记录...")
-            
+                print(f"Processed {i}/{len(records)} records...")
+
             processed_record = self.process_single_record(record)
             if processed_record:
                 processed_records.append(processed_record)
-        
+
         return processed_records
-    
+
     def print_final_stats(self) -> None:
         print("\n" + "=" * 80)
-        print("最终统计报告 (基于关键词搜索方法)")
+        print("Final Statistical Report (Keyword-based Method)")
         print("=" * 80)
-        print(f"检查方法: 搜索关键词 '{self.repo_checker.keyword}'")
-        print(f"总记录数: {self.stats['total_records']:,}")
-        print(f"唯一仓库数: {self.stats['unique_repos']:,}")
-        print(f"明确采用CCS规范的仓库数: {self.stats['conventional_repos']:,}")
-        print(f"保留的commit记录数: {self.stats['processed_records']:,}")
-        print(f"跳过的记录数: {self.stats['skipped_records']:,}")
-        
+        print(f"Check Method: Keyword search for '{self.repo_checker.keyword}'")
+        print(f"Total Records: {self.stats['total_records']:,}")
+        print(f"Unique Repositories: {self.stats['unique_repos']:,}")
+        print(f"CCS Compliant Repositories: {self.stats['conventional_repos']:,}")
+        print(f"Retained Commit Records: {self.stats['processed_records']:,}")
+        print(f"Skipped Records: {self.stats['skipped_records']:,}")
+
         if len(self.repo_cache) > 0:
             repo_ccs_rate = self.stats['conventional_repos'] / len(self.repo_cache) * 100
-            print(f"仓库CCS采用率: {repo_ccs_rate:.1f}%")
-        
+            print(f"Repository CCS Adoption Rate: {repo_ccs_rate:.1f}%")
+
         print("=" * 80)
-    
+
     def save_repo_cache(self, cache_file: str) -> None:
         try:
             cache_data = {
@@ -367,13 +368,13 @@ class CommitDatasetProcessorByKeyword:
                 'conventional_repos': sum(1 for v in self.repo_cache.values() if v),
                 'cache': self.repo_cache
             }
-            
+
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(cache_data, f, ensure_ascii=False, indent=2)
-            print(f"Repo缓存已保存到: {cache_file}")
+            print(f"Repo cache saved to: {cache_file}")
         except Exception as e:
-            print(f"保存缓存失败: {e}")
-    
+            print(f"Failed to save cache: {e}")
+
     def load_repo_cache(self, cache_file: str) -> None:
         try:
             if os.path.exists(cache_file):
@@ -384,146 +385,146 @@ class CommitDatasetProcessorByKeyword:
                     self.repo_cache = data['cache']
                     method = data.get('method', 'unknown')
                     keyword = data.get('keyword', 'unknown')
-                    print(f"已加载repo缓存: {len(self.repo_cache)} 个仓库 (方法: {method}, 关键词: {keyword})")
+                    print(
+                        f"Repo cache loaded: {len(self.repo_cache)} repositories (Method: {method}, Keyword: {keyword})")
                 else:
                     self.repo_cache = data
-                    print(f"已加载repo缓存: {len(self.repo_cache)} 个仓库 (兼容旧格式)")
+                    print(f"Repo cache loaded: {len(self.repo_cache)} repositories (Legacy format)")
             else:
-                print("缓存文件不存在，将创建新的缓存")
+                print("Cache file does not exist. Creating new cache...")
         except Exception as e:
-            print(f"加载缓存失败: {e}")
+            print(f"Failed to load cache: {e}")
             self.repo_cache = {}
 
 
 def test_checker():
-    print("测试基于关键词搜索的CCS规范检查器")
+    print("Testing Keyword-based CCS Compliance Checker")
     print("=" * 80)
-    
-    # 测试仓库列表
+
+    # Test repository list
     test_repos = [
         "microsoft/vscode",
-        "facebook/react", 
+        "facebook/react",
         "angular/angular",
         "vuejs/vue",
         "nodejs/node"
     ]
-    
+
     checker = KeywordCCSChecker()
-    
+
     results = checker.batch_check(test_repos, verbose=True)
-    
+
     output_file = "test_keyword_results.json"
     checker.save_results(results, output_file)
 
 
 def process_dataset():
-    print("基于关键词搜索的Commit Chronicle数据集处理器")
+    print("Keyword-based Commit Chronicle Dataset Processor")
     print("=" * 80)
-    
+
     input_dir = Path("./commit-chronicle-data/data")
     output_dir = Path("./output")
     output_file = output_dir / "commits_by_repo.parquet"
     cache_file = output_dir / "repo_cache_keyword.json"
-    
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     parquet_files = sorted(input_dir.glob("*.parquet"))
-    
+
     if not parquet_files:
-        print(f"在目录 {input_dir} 中未找到parquet文件")
+        print(f"No parquet files found in directory: {input_dir}")
         return
-    
-    print(f"找到 {len(parquet_files)} 个parquet文件")
+
+    print(f"Found {len(parquet_files)} parquet files")
     for i, f in enumerate(parquet_files, 1):
         print(f"  [{i}] {f.name}")
-    print(f"输出文件: {output_file}")
+    print(f"Output file: {output_file}")
     print("=" * 80)
-    
+
     processor = CommitDatasetProcessorByKeyword()
-    
+
     processor.load_repo_cache(str(cache_file))
-    
+
     all_processed_records = []
-    
+
     try:
         for idx, input_file in enumerate(parquet_files, 1):
-            print(f"\n{'='*80}")
-            print(f"处理文件 [{idx}/{len(parquet_files)}]: {input_file.name}")
-            print(f"{'='*80}")
-            
+            print(f"\n{'=' * 80}")
+            print(f"Processing file [{idx}/{len(parquet_files)}]: {input_file.name}")
+            print(f"{'=' * 80}")
+
             try:
-                print("正在读取parquet文件...")
+                print("Reading parquet file...")
                 df = pd.read_parquet(input_file)
-                
+
                 file_total_records = len(df)
-                print(f"文件记录数: {file_total_records:,}")
-                
+                print(f"Records in file: {file_total_records:,}")
+
                 unique_repos = df['repo'].nunique()
-                print(f"唯一仓库数: {unique_repos:,}")
+                print(f"Unique repositories: {unique_repos:,}")
 
                 records = df.to_dict('records')
 
                 chunk_size = 100
                 total_batches = (len(records) + chunk_size - 1) // chunk_size
-                
+
                 for i in range(0, len(records), chunk_size):
                     batch_num = i // chunk_size + 1
                     if batch_num % 10 == 0 or batch_num == 1:
-                        print(f"处理批次 {batch_num}/{total_batches}")
-                    
+                        print(f"Processing batch {batch_num}/{total_batches}")
+
                     batch_records = records[i:i + chunk_size]
                     processed_batch = processor.process_batch(batch_records)
                     all_processed_records.extend(processed_batch)
-                
-                print(f"文件 {input_file.name} 处理完成")
-                print(f"   本文件获得有效记录: {len(all_processed_records) - len([r for r in all_processed_records if r])}")
+
+                print(f"File {input_file.name} processed successfully")
+                print(
+                    f"   Valid records from this file: {len(all_processed_records) - len([r for r in all_processed_records if r])}")
 
                 processor.save_repo_cache(str(cache_file))
-                
+
             except Exception as e:
-                print(f"处理文件 {input_file.name} 时出错: {e}")
+                print(f"Error processing file {input_file.name}: {e}")
                 import traceback
                 traceback.print_exc()
                 continue
 
         if not all_processed_records:
-            print("\n警告：没有找到符合条件的记录！")
+            print("\nWARNING: No compliant records found!")
             return
 
-        print(f"\n{'='*80}")
-        print(f"正在保存所有结果到 {output_file}...")
+        print(f"\n{'=' * 80}")
+        print(f"Saving all results to {output_file}...")
         result_df = pd.DataFrame(all_processed_records)
         result_df.to_parquet(output_file, index=False)
 
         processor.stats['conventional_repos'] = sum(1 for v in processor.repo_cache.values() if v)
 
         processor.print_final_stats()
-        
-        print(f"\n{'='*80}")
-        print(f"所有文件处理完成！")
-        print(f"处理文件数: {len(parquet_files)}")
-        print(f"总有效记录数: {len(all_processed_records):,}")
-        print(f"输出文件: {output_file}")
-        print(f"{'='*80}")
-        
+
+        print(f"\n{'=' * 80}")
+        print(f"All files processed!")
+        print(f"Files handled: {len(parquet_files)}")
+        print(f"Total valid records: {len(all_processed_records):,}")
+        print(f"Output file: {output_file}")
+        print(f"{'=' * 80}")
+
     except KeyboardInterrupt:
-        print("\n用户中断操作")
-        
+        print("\nOperation interrupted by user")
+
         processor.save_repo_cache(str(cache_file))
         if all_processed_records:
-            print(f"保存已处理的 {len(all_processed_records):,} 条记录...")
+            print(f"Saving {len(all_processed_records):,} processed records...")
             result_df = pd.DataFrame(all_processed_records)
             result_df.to_parquet(output_file, index=False)
-            print(f"部分结果已保存到: {output_file}")
+            print(f"Partial results saved to: {output_file}")
     except Exception as e:
-        print(f"程序运行错误: {e}")
+        print(f"Runtime error: {e}")
         import traceback
         traceback.print_exc()
 
-
 def main():
     process_dataset()
-
 
 if __name__ == "__main__":
     main()

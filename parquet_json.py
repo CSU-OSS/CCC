@@ -2,7 +2,11 @@ import pandas as pd
 import numpy as np
 import pathlib, json, argparse, sys
 
+
 def convert_to_serializable(obj):
+    """
+    Recursively converts NumPy and Pandas specific types into JSON-serializable Python types.
+    """
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     elif isinstance(obj, np.integer):
@@ -22,7 +26,11 @@ def convert_to_serializable(obj):
     else:
         return obj
 
+
 def convert(pq_path, out_dir: pathlib.Path):
+    """
+    Reads a Parquet file and converts it to a Line-delimited JSON (JSONL) format.
+    """
     out_path = (out_dir / pq_path.name).with_suffix('.json')
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -31,23 +39,27 @@ def convert(pq_path, out_dir: pathlib.Path):
         for rec in df.to_dict(orient='records'):
             serializable_rec = convert_to_serializable(rec)
             f.write(json.dumps(serializable_rec, ensure_ascii=False) + '\n')
-    print('converted', pq_path, '->', out_path)
+    print(f'Converted: {pq_path} -> {out_path}')
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='Convert Parquet datasets to JSONL format.')
     parser.add_argument('-o', '--output-dir', type=pathlib.Path,
                         default=pathlib.Path('./output/ccs_commits_dataset_json'),
-                        help='把生成的 .json 统一放到哪个目录')
+                        help='Directory to store the generated .json files')
     parser.add_argument('input', nargs='?', type=pathlib.Path,
                         default=pathlib.Path('./output/ccs_commits_dataset'),
-                        help='要转换的文件或目录（缺省为./output/ccs_commit_dataset）')
+                        help='Input file or directory to convert (default: ./output/ccs_commits_dataset)')
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     src = args.input
     if src.is_file():
         convert(src, args.output_dir)
-    else:
+    elif src.is_dir():
         for pq in src.rglob('*.parquet'):
             convert(pq, args.output_dir)
+    else:
+        print(f"Error: Path {src} does not exist.")
+        sys.exit(1)

@@ -1,6 +1,9 @@
 """
-过滤真正遵守CCS规范的仓库
-该脚本读取带有is_CCS字段的数据集，过滤掉所有commit的is_CCS都为0的仓库，
+Filter Truly CCS-Compliant Repositories
+
+This script reads a dataset containing the 'is_CCS' field and filters out
+all repositories where the 'is_CCS' value is 0 for every single commit
+(i.e., repositories that claim to use CCS but have no valid CCS commits).
 """
 
 import pandas as pd
@@ -19,19 +22,20 @@ class TrueCCSRepoFilter:
             'removed_records': 0
         }
         self.repo_ccs_status: Dict[str, Dict] = {}
-    
+
     def analyze_repos(self, df: pd.DataFrame) -> None:
-        print("\n正在分析各仓库的CCS符合情况...")
-        
+        print("\nAnalyzing CCS compliance across repositories...")
+
         repo_groups = df.groupby('repo')
-        
+
         for repo_name, group in repo_groups:
             total_commits = len(group)
             ccs_commits = group['is_CCS'].sum()
             non_ccs_commits = total_commits - ccs_commits
-            
+
+            # A repository is considered "True CCS" if it has at least one valid CCS commit
             is_true_ccs = ccs_commits > 0
-            
+
             self.repo_ccs_status[repo_name] = {
                 'total_commits': int(total_commits),
                 'ccs_commits': int(ccs_commits),
@@ -39,128 +43,130 @@ class TrueCCSRepoFilter:
                 'ccs_rate': float(ccs_commits / total_commits) if total_commits > 0 else 0.0,
                 'is_true_ccs': bool(is_true_ccs)
             }
-            
+
             if is_true_ccs:
                 self.stats['true_ccs_repos'] += 1
             else:
                 self.stats['false_ccs_repos'] += 1
-        
+
         self.stats['total_repos'] = len(self.repo_ccs_status)
-    
+
     def filter_dataset(self, df: pd.DataFrame) -> pd.DataFrame:
-        print("\n正在过滤数据集...")
-        
+        print("\nFiltering dataset...")
+
         true_ccs_repos = [
             repo for repo, status in self.repo_ccs_status.items()
             if status['is_true_ccs']
         ]
-        
+
         filtered_df = df[df['repo'].isin(true_ccs_repos)].copy()
-        
+
         self.stats['total_records'] = len(df)
         self.stats['filtered_records'] = len(filtered_df)
         self.stats['removed_records'] = self.stats['total_records'] - self.stats['filtered_records']
-        
+
         return filtered_df
-    
+
     def print_repo_analysis(self, top_n: int = 10) -> None:
         print("\n" + "=" * 80)
-        print("仓库CCS符合情况分析")
+        print("Repository CCS Compliance Analysis")
         print("=" * 80)
 
         true_ccs_repos = {k: v for k, v in self.repo_ccs_status.items() if v['is_true_ccs']}
         false_ccs_repos = {k: v for k, v in self.repo_ccs_status.items() if not v['is_true_ccs']}
-        
-        print(f"\n总仓库数: {self.stats['total_repos']:,}")
-        print(f"真正遵守CCS规范的仓库: {self.stats['true_ccs_repos']:,} ({self.stats['true_ccs_repos']/self.stats['total_repos']*100:.2f}%)")
-        print(f"未真正遵守CCS规范的仓库: {self.stats['false_ccs_repos']:,} ({self.stats['false_ccs_repos']/self.stats['total_repos']*100:.2f}%)")
+
+        print(f"\nTotal Repositories: {self.stats['total_repos']:,}")
+        print(
+            f"True CCS Repositories: {self.stats['true_ccs_repos']:,} ({self.stats['true_ccs_repos'] / self.stats['total_repos'] * 100:.2f}%)")
+        print(
+            f"False CCS Repositories: {self.stats['false_ccs_repos']:,} ({self.stats['false_ccs_repos'] / self.stats['total_repos'] * 100:.2f}%)")
 
         if false_ccs_repos:
-            print(f"\n未真正遵守CCS规范的仓库列表 (所有commit的is_CCS都为0):")
+            print(f"\nList of False CCS Repositories (All commits have is_CCS=0):")
             print("-" * 80)
             for i, (repo, status) in enumerate(false_ccs_repos.items(), 1):
-                print(f"  [{i}] {repo} (commits: {status['total_commits']})")
+                print(f"  [{i}] {repo} (Total Commits: {status['total_commits']})")
 
         if true_ccs_repos:
-            print(f"\nCCS符合率最高的前{min(top_n, len(true_ccs_repos))}个仓库:")
+            print(f"\nTop {min(top_n, len(true_ccs_repos))} Repositories by CCS Compliance Rate:")
             print("-" * 80)
             sorted_repos = sorted(
                 true_ccs_repos.items(),
                 key=lambda x: x[1]['ccs_rate'],
                 reverse=True
             )[:top_n]
-            
+
             for i, (repo, status) in enumerate(sorted_repos, 1):
                 print(f"  [{i}] {repo}")
-                print(f"      总commits: {status['total_commits']}, "
-                      f"符合CCS: {status['ccs_commits']}, "
-                      f"不符合: {status['non_ccs_commits']}, "
-                      f"符合率: {status['ccs_rate']*100:.2f}%")
-        
+                print(f"      Total Commits: {status['total_commits']}, "
+                      f"CCS Compliant: {status['ccs_commits']}, "
+                      f"Non-compliant: {status['non_ccs_commits']}, "
+                      f"Compliance Rate: {status['ccs_rate'] * 100:.2f}%")
+
         print("=" * 80)
-    
+
     def print_final_stats(self) -> None:
         print("\n" + "=" * 80)
-        print("过滤结果统计")
+        print("Final Filtering Statistics")
         print("=" * 80)
-        print(f"原始记录数: {self.stats['total_records']:,}")
-        print(f"过滤后记录数: {self.stats['filtered_records']:,}")
-        print(f"移除的记录数: {self.stats['removed_records']:,}")
-        print(f"数据保留率: {self.stats['filtered_records']/self.stats['total_records']*100:.2f}%")
+        print(f"Original Record Count: {self.stats['total_records']:,}")
+        print(f"Filtered Record Count: {self.stats['filtered_records']:,}")
+        print(f"Removed Record Count:  {self.stats['removed_records']:,}")
+        print(f"Record Retention Rate: {self.stats['filtered_records'] / self.stats['total_records'] * 100:.2f}%")
         print("-" * 80)
-        print(f"原始仓库数: {self.stats['total_repos']:,}")
-        print(f"保留的仓库数: {self.stats['true_ccs_repos']:,}")
-        print(f"移除的仓库数: {self.stats['false_ccs_repos']:,}")
-        print(f"仓库保留率: {self.stats['true_ccs_repos']/self.stats['total_repos']*100:.2f}%")
+        print(f"Original Repo Count:   {self.stats['total_repos']:,}")
+        print(f"Retained Repo Count:   {self.stats['true_ccs_repos']:,}")
+        print(f"Removed Repo Count:    {self.stats['false_ccs_repos']:,}")
+        print(f"Repo Retention Rate:   {self.stats['true_ccs_repos'] / self.stats['total_repos'] * 100:.2f}%")
         print("=" * 80)
-    
+
     def save_repo_analysis(self, output_file: str) -> None:
         import json
         from datetime import datetime
-        
+
         analysis_data = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'statistics': self.stats,
             'repo_details': self.repo_ccs_status
         }
-        
+
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(analysis_data, f, ensure_ascii=False, indent=2)
-        
-        print(f"\n仓库分析结果已保存到: {output_file}")
+
+        print(f"\nRepository analysis results saved to: {output_file}")
 
 
 def filter_true_ccs_repos(
-    input_file: str,
-    output_file: str,
-    analysis_file: str = None
+        input_file: str,
+        output_file: str,
+        analysis_file: str = None
 ):
     input_path = Path(input_file)
-    
+
     if not input_path.exists():
-        print(f"错误：输入文件不存在: {input_file}")
+        print(f"Error: Input file does not exist: {input_file}")
         return
-    
+
     print("=" * 80)
-    print("过滤真正遵守CCS规范的仓库")
+    print("Filtering Truly CCS-Compliant Repositories")
     print("=" * 80)
-    print(f"输入文件: {input_file}")
-    print(f"输出文件: {output_file}")
+    print(f"Input file:    {input_file}")
+    print(f"Output file:   {output_file}")
     if analysis_file:
-        print(f"分析文件: {analysis_file}")
+        print(f"Analysis file: {analysis_file}")
     print("=" * 80)
 
-    print("\n正在读取数据集...")
+    print("\nReading dataset...")
     df = pd.read_parquet(input_file)
-    print(f"读取完成，共 {len(df):,} 条记录")
+    print(f"Read complete. Found {len(df):,} records.")
 
     if 'is_CCS' not in df.columns:
-        print("错误：数据集中缺少is_CCS字段！")
-        print("请先运行add_is_ccs.py脚本添加is_CCS字段。")
+        print("Error: 'is_CCS' field missing in dataset!")
+        print("Please run the 'add_is_ccs.py' script first to generate the compliance field.")
         return
-    
+
     if 'repo' not in df.columns:
-        print("错误：数据集中缺少repo字段！")
+        print("Error: 'repo' field missing in dataset!")
         return
 
     filter_obj = TrueCCSRepoFilter()
@@ -170,7 +176,7 @@ def filter_true_ccs_repos(
 
     filtered_df = filter_obj.filter_dataset(df)
 
-    print(f"\n正在保存过滤后的数据到: {output_file}")
+    print(f"\nSaving filtered data to: {output_file}")
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     filtered_df.to_parquet(output_file, index=False)
@@ -179,15 +185,14 @@ def filter_true_ccs_repos(
         filter_obj.save_repo_analysis(analysis_file)
 
     filter_obj.print_final_stats()
-    
-    print(f"\n过滤完成！结果已保存到: {output_file}")
 
+    print(f"\nFiltering complete! Results saved to: {output_file}")
 
 def main():
     input_file = "./output/commits_by_repo.parquet"
     output_file = "./output/commits_true_ccs_repos.parquet"
     analysis_file = "./output/repo_ccs_analysis.json"
-    
+
     filter_true_ccs_repos(
         input_file=input_file,
         output_file=output_file,
